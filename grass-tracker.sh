@@ -214,6 +214,7 @@ if not contributions:
     sys.exit(1)
 
 today = date.today()
+committed_today = contributions.get(today, 0) > 0
 
 # ── Calculate current streak ───────────────────────────────
 current    = today if contributions.get(today, 0) > 0 else today - timedelta(days=1)
@@ -317,5 +318,25 @@ for msg in messages:
     print_line(msg)
 print()
 animate_divider("─", CYAN)
+
+# ── 오늘 커밋 없을 때 응원 메시지 ───────────────────────────
+if not committed_today:
+    print()
+    animate_divider("✦", YELLOW, speed=0.005)
+    if streak > 0:
+        print_line(f"  {BOLD}{YELLOW}⚠️  No commit yet today!{RESET}")
+        print()
+        print_line(f"  🔥  Your {streak}-day streak is at risk of breaking!")
+        print_line(f"  💪  One commit is all it takes to keep it alive.")
+        print_line(f"  🎯  Don't let this streak end — you've got this!")
+    else:
+        print_line(f"  {BOLD}{YELLOW}🌱  No commit yet today!{RESET}")
+        print()
+        print_line(f"  🚀  Plant your first grass of the day with a single commit.")
+        print_line(f"  🌟  Small commits add up to a beautiful green garden.")
+        print_line(f"  💡  Stay consistent — today's habit builds tomorrow's streak.")
+    print()
+    animate_divider("✦", YELLOW, speed=0.005)
+
 print()
 EOF
