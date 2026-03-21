@@ -1,17 +1,27 @@
 #!/bin/bash
 # GitHub Daily Commit Streak Tracker
-# Usage: ./grass-tracker.sh <github_user_id>
+# Usage: ./grass-tracker.sh <github_user_id> [weeks]
 
 # ── Usage check ───────────────────────────────────────────
 if [[ -z "$1" ]]; then
     echo ""
-    echo "  Usage: $0 <github_user_id>"
+    echo "  Usage: $0 <github_user_id> [weeks]"
     echo "  Example: $0 torvalds"
+    echo "  Example: $0 torvalds 6"
     echo ""
     exit 1
 fi
 
 USER_ID="$1"
+WEEKS="${2:-12}"
+
+# ── Validate weeks argument ───────────────────────────────
+if ! [[ "$WEEKS" =~ ^[1-9][0-9]*$ ]]; then
+    echo ""
+    echo "  ❌  [weeks] must be a positive integer (got: $WEEKS)"
+    echo ""
+    exit 1
+fi
 
 # ── Check if gh is installed ──────────────────────────────
 if ! command -v gh &> /dev/null; then
@@ -77,7 +87,7 @@ printf "\r  \033[32m✓\033[0m  Data fetched for \033[1m@%s\033[0m.             
 INPUT="$(cat "$TMPOUT")"
 
 # ── Analyze and display (Python) ──────────────────────────
-python3 - "$INPUT" "$USER_ID" << 'EOF'
+python3 - "$INPUT" "$USER_ID" "$WEEKS" << 'EOF'
 import sys
 import json
 import time
@@ -152,11 +162,11 @@ def animate_streak(streak, color=GREEN):
     flush("\n" + SHOW_CUR)
     sys.stdout.flush()
 
-def render_heatmap(contributions):
-    """Print the last 6 weeks as a colour-coded grid, one row at a time."""
+def render_heatmap(contributions, num_weeks=12):
+    """Print the last N weeks as a colour-coded grid, one row at a time."""
     today  = date.today()
     monday = today - timedelta(days=today.weekday())
-    start  = monday - timedelta(weeks=5)
+    start  = monday - timedelta(weeks=num_weeks - 1)
 
     lvl_colors = [
         "\033[38;5;238m",  # 0 commits : dark grey
@@ -185,8 +195,9 @@ def render_heatmap(contributions):
         time.sleep(0.045)
 
 # ── Parse contribution data ────────────────────────────────
-data    = sys.argv[1] if len(sys.argv) > 1 else ""
-user_id = sys.argv[2] if len(sys.argv) > 2 else ""
+data      = sys.argv[1] if len(sys.argv) > 1 else ""
+user_id   = sys.argv[2] if len(sys.argv) > 2 else ""
+num_weeks = int(sys.argv[3]) if len(sys.argv) > 3 else 12
 
 contributions = {}
 try:
@@ -291,8 +302,8 @@ animate_divider("─", CYAN)
 print()
 
 # Contribution heatmap
-print_line(f"  {DIM}Last 6 weeks{RESET}", delay=0.02)
-render_heatmap(contributions)
+print_line(f"  {DIM}Last {num_weeks} weeks{RESET}", delay=0.02)
+render_heatmap(contributions, num_weeks)
 print()
 
 if streak > 0:
