@@ -2,18 +2,29 @@
 # GitHub Daily Commit Streak Tracker
 # Usage: ./grass-tracker.sh <github_user_id> [weeks]
 
-# ── Usage check ───────────────────────────────────────────
-if [[ -z "$1" ]]; then
+# ── Argument parsing ──────────────────────────────────────
+QUICK=0
+POSITIONAL=()
+for arg in "$@"; do
+    case "$arg" in
+        --quick|-q) QUICK=1 ;;
+        *) POSITIONAL+=("$arg") ;;
+    esac
+done
+
+USER_ID="${POSITIONAL[0]:-}"
+WEEKS="${POSITIONAL[1]:-12}"
+
+if [[ -z "$USER_ID" ]]; then
     echo ""
-    echo "  Usage: $0 <github_user_id> [weeks]"
+    echo "  Usage: $0 <github_user_id> [weeks] [--quick|-q]"
     echo "  Example: $0 torvalds"
     echo "  Example: $0 torvalds 6"
+    echo "  Example: $0 torvalds --quick"
+    echo "  Example: $0 torvalds 6 --quick"
     echo ""
     exit 1
 fi
-
-USER_ID="$1"
-WEEKS="${2:-12}"
 
 # ── Validate weeks argument ───────────────────────────────
 if ! [[ "$WEEKS" =~ ^[1-9][0-9]*$ ]]; then
@@ -57,37 +68,49 @@ QUERY='query($login: String!) {
 }'
 
 echo ""
-printf "\033[?25l"   # hide cursor while spinner is running
 
-gh api graphql -f query="$QUERY" -f login="$USER_ID" > "$TMPOUT" 2> "$TMPERR" &
-FETCH_PID=$!
+if [[ $QUICK -eq 1 ]]; then
+    gh api graphql -f query="$QUERY" -f login="$USER_ID" > "$TMPOUT" 2> "$TMPERR"
+    FETCH_STATUS=$?
+    if [[ $FETCH_STATUS -ne 0 ]]; then
+        printf "  \033[31m✗\033[0m  Failed to fetch data for @%s.\n\n" "$USER_ID"
+        cat "$TMPERR"
+        echo ""
+        exit 1
+    fi
+else
+    printf "\033[?25l"   # hide cursor while spinner is running
 
-FRAMES=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
-i=0
-while kill -0 "$FETCH_PID" 2>/dev/null; do
-    frame="${FRAMES[$((i % 10))]}"
-    printf "\r  \033[36m%s\033[0m  Fetching data for \033[1m@%s\033[0m..." "$frame" "$USER_ID"
-    sleep 0.08
-    i=$((i + 1))
-done
+    gh api graphql -f query="$QUERY" -f login="$USER_ID" > "$TMPOUT" 2> "$TMPERR" &
+    FETCH_PID=$!
 
-wait "$FETCH_PID"
-FETCH_STATUS=$?
-printf "\033[?25h"   # show cursor again
+    FRAMES=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+    i=0
+    while kill -0 "$FETCH_PID" 2>/dev/null; do
+        frame="${FRAMES[$((i % 10))]}"
+        printf "\r  \033[36m%s\033[0m  Fetching data for \033[1m@%s\033[0m..." "$frame" "$USER_ID"
+        sleep 0.08
+        i=$((i + 1))
+    done
 
-if [[ $FETCH_STATUS -ne 0 ]]; then
-    printf "\r  \033[31m✗\033[0m  Failed to fetch data for @%s.          \n\n" "$USER_ID"
-    cat "$TMPERR"
-    echo ""
-    exit 1
+    wait "$FETCH_PID"
+    FETCH_STATUS=$?
+    printf "\033[?25h"   # show cursor again
+
+    if [[ $FETCH_STATUS -ne 0 ]]; then
+        printf "\r  \033[31m✗\033[0m  Failed to fetch data for @%s.          \n\n" "$USER_ID"
+        cat "$TMPERR"
+        echo ""
+        exit 1
+    fi
+
+    printf "\r  \033[32m✓\033[0m  Data fetched for \033[1m@%s\033[0m.              \n" "$USER_ID"
 fi
-
-printf "\r  \033[32m✓\033[0m  Data fetched for \033[1m@%s\033[0m.              \n" "$USER_ID"
 
 INPUT="$(cat "$TMPOUT")"
 
 # ── Analyze and display (Python) ──────────────────────────
-python3 - "$INPUT" "$USER_ID" "$WEEKS" << 'EOF'
+python3 - "$INPUT" "$USER_ID" "$WEEKS" "$QUICK" << 'EOF'
 import sys
 import json
 import time
@@ -125,9 +148,13 @@ def flush(text):
 def print_line(text="", delay=0.035):
     print(text)
     sys.stdout.flush()
-    time.sleep(delay)
+    if not quick:
+        time.sleep(delay)
 
 def animate_divider(char="─", color=CYAN, speed=0.007):
+    if quick:
+        print("  " + char * WIDTH)
+        return
     flush("  " + color)
     for _ in range(WIDTH):
         flush(char)
@@ -141,6 +168,10 @@ def animate_progress(value, maximum, bar_width=38, color=GREEN, label=""):
         return
     target = int(bar_width * min(value, maximum) / maximum)
     pct_final = int(100 * min(value, maximum) / maximum)
+    if quick:
+        bar = "█" * target + "░" * (bar_width - target)
+        print(f"  {color}▕{bar}▏{RESET} {pct_final:3d}%  {DIM}{label}{RESET}")
+        return
     flush(HIDE_CUR)
     for filled in range(target + 1):
         empty = bar_width - filled
@@ -153,6 +184,9 @@ def animate_progress(value, maximum, bar_width=38, color=GREEN, label=""):
 
 def animate_streak(streak, color=GREEN):
     """Count up to the streak number."""
+    if quick:
+        print(f"  {BOLD}{color}🔥 Current streak : {streak} day(s)!{RESET}")
+        return
     flush(HIDE_CUR)
     steps = 20
     for i in range(steps + 1):
@@ -192,12 +226,14 @@ def render_heatmap(contributions, num_weeks=12):
             d += timedelta(weeks=1)
         flush(" ".join(cells) + "\n")
         sys.stdout.flush()
-        time.sleep(0.045)
+        if not quick:
+            time.sleep(0.045)
 
 # ── Parse contribution data ────────────────────────────────
 data      = sys.argv[1] if len(sys.argv) > 1 else ""
 user_id   = sys.argv[2] if len(sys.argv) > 2 else ""
 num_weeks = int(sys.argv[3]) if len(sys.argv) > 3 else 12
+quick     = sys.argv[4] == "1" if len(sys.argv) > 4 else False
 
 contributions = {}
 try:

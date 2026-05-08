@@ -29,18 +29,21 @@ A CLI tool that shows your **GitHub daily commit streak** — fetched directly v
 ## Usage
 
 ```bash
-./grass-tracker.sh <github_user_id> [weeks]
+./grass-tracker.sh <github_user_id> [weeks] [--quick|-q]
 ```
 
 - `github_user_id` — GitHub username to look up (required)
 - `weeks` — number of weeks to display in the heatmap (optional, default: `12`)
+- `--quick` / `-q` — skip all animations and print results immediately (optional)
 
 **Examples:**
 
 ```bash
-./grass-tracker.sh liks79          # show last 12 weeks (default)
-./grass-tracker.sh liks79 6        # show last 6 weeks
-./grass-tracker.sh torvalds 24     # show last 24 weeks
+./grass-tracker.sh liks79               # show last 12 weeks (default)
+./grass-tracker.sh liks79 6             # show last 6 weeks
+./grass-tracker.sh torvalds 24          # show last 24 weeks
+./grass-tracker.sh liks79 --quick       # instant output, no animations
+./grass-tracker.sh liks79 6 --quick     # 6 weeks, instant output
 ```
 
 ## Installation
@@ -49,8 +52,9 @@ A CLI tool that shows your **GitHub daily commit streak** — fetched directly v
 git clone https://github.com/liks79/grass-tracker.git
 cd grass-tracker
 chmod +x grass-tracker.sh
-./grass-tracker.sh <your_github_id>           # default 12-week heatmap
-./grass-tracker.sh <your_github_id> [weeks]   # custom week range
+./grass-tracker.sh <your_github_id>                    # default 12-week heatmap
+./grass-tracker.sh <your_github_id> [weeks]            # custom week range
+./grass-tracker.sh <your_github_id> [weeks] --quick    # skip animations
 ```
 
 ## Streak badges
